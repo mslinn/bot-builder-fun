@@ -1,0 +1,64 @@
+#!/usr/bin/env bash
+
+# The person who associated a work with this deed has dedicated the work to the public domain by waiving all of his or
+# her rights to the work worldwide under copyright law, including all related and neighboring rights, to the extent allowed by law.
+#
+# You can copy, modify, distribute and perform the work, even for commercial purposes, all without asking permission.
+#
+# In no way are the patent or trademark rights of any person affected by CC0, nor are the rights that other persons may
+# have in the work or in how the work is used, such as publicity or privacy rights.
+# Unless expressly stated otherwise, the person who associated a work with this deed makes no warranties about the work,
+# and disclaims liability for all uses of the work, to the fullest extent permitted by applicable law.
+# When using or citing the work, you should not imply endorsement by the author or the affirmer.
+#
+# The full legal text is here: https://creativecommons.org/publicdomain/zero/1.0/legalcode
+
+# Sample usage:
+# bin/run -j [entryPoint]
+#
+# -j option forces rebuild of jar
+# entryPoint defaults to "BBFun"
+
+DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )/.."
+cd "$DIR"
+
+function trim {
+  sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//'
+}
+
+# Scan build.sbt for program entity, Scala version and program version
+function findValue {
+  echo "$( grep "$1 :=" build.sbt | cut -d' ' -f 3 | tr -d \" | trim )"
+}
+
+SCALA_VERSION() {
+  V=`grep -E "^scalaVersion[[:space:]]+:=" build.sbt |  cut -d' ' -f 3 | tr -d \"`
+   case ${V} in
+    2.10.*) echo 2.10 ;;
+    2.11.*) echo 2.11 ;;
+    2.12.*) echo 2.12 ;;
+    2.13.*) echo 2.13 ;;
+       0.*)  echo 3.0 ;;
+         *) echo UNKNOWN ;;
+  esac
+}
+
+NAME="$( findValue name )"
+VERSION="$( findValue version )"
+JAR=target/scala-`SCALA_VERSION`/${NAME}-assembly-${VERSION}.jar
+
+if [[ "$1" == -j ]] || [[ ! -f ${JAR} ]]; then
+  echo "Building $JAR"
+  sbt assembly
+
+  if [[ "$1" == -j ]]; then shift; fi
+fi
+
+if [[ "$1" && "${1:0:1}" != "-" ]]; then
+  ENTRY="$1"
+  shift
+else
+  ENTRY=BBFun
+fi
+
+java -cp "$JAR" "$ENTRY" "$@"
